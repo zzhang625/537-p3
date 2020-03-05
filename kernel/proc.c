@@ -454,6 +454,28 @@ procdump(void)
 int 
 mprotect(void *addr, int len)
 {
+    // 1.
+    // check failure cases
+    // fail if addr is not page aligned
+    
+    // fail if addr points to a region
+    // that is not currently a part of
+    // the address space
+    
+    // fail if len is not positive
+    if (len <= 0) return -1;
+    
+    // fail if addr is not valid: 
+    // it can’t have an unallocated 
+    // page or exceeding USERTOP. 
+    // Otherwise, the user could change
+    // the kernel address space to 
+    // read-only which is not expected. 
+    
+    // 2.
+    // 
+    
+    // success, return 0
     return 0;
 }
 
