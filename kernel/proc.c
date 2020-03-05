@@ -458,19 +458,19 @@ mprotect(void *addr, int len)
     // check failure cases
     // fail if addr is not page aligned
     
-    // fail if addr points to a region
-    // that is not currently a part of
-    // the address space
     
     // fail if len is not positive
     if (len <= 0) return -1;
     
-    // fail if addr is not valid: 
+    // fail if addr points to a region
+    // that is not currently a part of
+    // the address space(invalid addr)
     // it can’t have an unallocated 
     // page or exceeding USERTOP. 
     // Otherwise, the user could change
     // the kernel address space to 
     // read-only which is not expected. 
+    
     
     // 2.
     // 
