@@ -443,46 +443,4 @@ procdump(void)
   }
 }
 
-// change the protection bits of the page range starting at 
-// addr and of len pages to be read only. Thus, the program 
-// could still read the pages in this range after mprotect() 
-// finishes, but a write to this region should cause a trap 
-// (and thus kill the process).
-// @param addr: an unsigned integer that represents the 
-//              position in the virtual page table.
-// 
-int 
-mprotect(void *addr, int len)
-{
-    // 1.
-    // check failure cases
-    // fail if addr is not page aligned
-    
-    
-    // fail if len is not positive
-    if (len <= 0) return -1;
-    
-    // fail if addr points to a region
-    // that is not currently a part of
-    // the address space(invalid addr)
-    // it can’t have an unallocated 
-    // page or exceeding USERTOP. 
-    // Otherwise, the user could change
-    // the kernel address space to 
-    // read-only which is not expected. 
-    
-    
-    // 2.
-    // 
-    
-    // success, return 0
-    return 0;
-}
-
-int 
-munprotect(void *addr, int len) 
-{
-    return 0;
-}
-
 

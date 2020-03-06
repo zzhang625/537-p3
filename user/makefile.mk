@@ -16,7 +16,8 @@ USER_PROGS := \
 	tester\
 	usertests\
 	wc\
-	zombie
+	zombie\
+	protect_basic
 
 USER_PROGS := $(addprefix user/, $(USER_PROGS))
 
@@ -72,8 +73,8 @@ USER_LDFLAGS += --omagic
 # where program execution should begin
 USER_LDFLAGS += --entry=main
 
-# location in memory where the program will be loaded
-USER_LDFLAGS += --section-start=.text=0x0
+# modified: location in memory where the program will be loaded
+USER_LDFLAGS += --section-start=.text=0x1000
 
 user/bin:
 	mkdir -p user/bin

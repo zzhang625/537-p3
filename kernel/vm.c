@@ -306,7 +306,7 @@ copyuvm(pde_t *pgdir, uint sz)
 
   if((d = setupkvm()) == 0)
     return 0;
-  for(i = 0; i < sz; i += PGSIZE){
+  for(i = PGSIZE; i < sz; i += PGSIZE){ // modified 0 to PGSIZE
     if((pte = walkpgdir(pgdir, (void*)i, 0)) == 0)
       panic("copyuvm: pte should exist");
     if(!(*pte & PTE_P))
@@ -315,8 +315,17 @@ copyuvm(pde_t *pgdir, uint sz)
     if((mem = kalloc()) == 0)
       goto bad;
     memmove(mem, (char*)pa, PGSIZE);
-    if(mappages(d, (void*)i, PGSIZE, PADDR(mem), PTE_W|PTE_U) < 0)
-      goto bad;
+
+    if(!(*pte & PTE_W)){
+        //cprintf("not write\n");
+        if(mappages(d, (void*)i, PGSIZE, PADDR(*pte), PTE_U) < 0)
+            goto bad;
+    }
+    else {
+        //cprintf("write\n");
+        if(mappages(d, (void*)i, PGSIZE, PADDR(mem), PTE_W|PTE_U) < 0)
+            goto bad;
+    }
   }
   return d;
 
@@ -364,3 +373,62 @@ copyout(pde_t *pgdir, uint va, void *p, uint len)
   }
   return 0;
 }
+
+int mprotect(void *addr, int len){
+  int va;
+  va = (uint)addr;
+  if((va % PGSIZE) != 0){
+    return -1;
+  }
+
+  pte_t *pte;
+  pte = walkpgdir(proc->pgdir, (void*)va, 0);
+  if(pte){
+    int i = 0;
+    for (i = va; i < (va + len*PGSIZE); i += PGSIZE){
+        if((pte = walkpgdir(proc->pgdir, (void*)i, 0)) == 0)
+            return -1;
+        if((*pte & PTE_U) == 0 || (*pte & PTE_P) == 0)
+            return -1;
+    }
+
+    for (i = va; i < (va + (len) *PGSIZE) ; i += PGSIZE){
+      //cprintf("\nPTE %p\n", pte);
+        pte = walkpgdir(proc->pgdir, (void*)i, 0);
+        *pte = PADDR(*pte) & (~PTE_W) ;
+      }
+        //cprintf("came here\n");
+  }
+  lcr3(PADDR(proc->pgdir));
+  return 0;
+}
+
+int munprotect(void *addr, int len){
+  int va;
+  va = (uint)addr;
+  if((va % PGSIZE) != 0){
+    return -1;
+  }
+
+  pte_t *pte;
+  pte = walkpgdir(proc->pgdir, (void*)va, 0);
+  if(pte){
+    int i = 0;
+    for (i = va; i < (va + len*PGSIZE); i += PGSIZE){
+        if((pte = walkpgdir(proc->pgdir, (void*)i, 0)) == 0)
+            return -1;
+        if((*pte & PTE_U) == 0 || (*pte & PTE_P) == 0)
+            return -1;
+    }
+
+    for (i = va; i < (va + (len) *PGSIZE) ; i += PGSIZE){
+      //cprintf("\nPTE %p\n", pte);
+        pte = walkpgdir(proc->pgdir, (void*)i, 0);
+        *pte = PADDR(*pte) | (PTE_W) ;
+      }
+        //cprintf("came here\n");
+  }
+  lcr3(PADDR(proc->pgdir));
+  return 0;
+}
+       

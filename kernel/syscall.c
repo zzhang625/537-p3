@@ -17,8 +17,15 @@
 int
 fetchint(struct proc *p, uint addr, int *ip)
 {
-  if(addr >= p->sz || addr+4 > p->sz)
-    return -1;
+
+  if (proc->pid == 1){
+      if(addr >= p->sz || addr + 4 > p->sz)
+          return -1;
+  }
+  if (proc->pid != 1){
+      if(addr + 4 > p->sz || addr < PGSIZE)
+        return -1; 
+  }
   *ip = *(int*)(addr);
   return 0;
 }
@@ -30,9 +37,13 @@ int
 fetchstr(struct proc *p, uint addr, char **pp)
 {
   char *s, *ep;
+  if(p->pid == 1 && addr >= p->sz)
+      return -1;
+  if(p->pid != 1){
+      if((addr >= p->sz || addr < PGSIZE))
+          return -1;
+  }
 
-  if(addr >= p->sz)
-    return -1;
   *pp = (char*)addr;
   ep = (char*)p->sz;
   for(s = *pp; s < ep; s++)
@@ -58,8 +69,15 @@ argptr(int n, char **pp, int size)
   
   if(argint(n, &i) < 0)
     return -1;
-  if((uint)i >= proc->sz || (uint)i+size > proc->sz)
-    return -1;
+
+  if(proc->pid == 1){
+      if((uint)i >= proc->sz || (uint)i+size > proc->sz)
+        return -1;
+  }
+  if(proc->pid != 1){
+      if((uint)i < PGSIZE || (uint)i + size > proc->sz)
+        return -1;
+  }
   *pp = (char*)i;
   return 0;
 }
@@ -103,8 +121,8 @@ static int (*syscalls[])(void) = {
 [SYS_wait]    sys_wait,
 [SYS_write]   sys_write,
 [SYS_uptime]  sys_uptime,
-[SYS_MPROTECT] sys_mprotect,
-[SYS_MUNPROTECT] sys_munprotect
+[SYS_mprotect] sys_mprotect,
+[SYS_munprotect] sys_munprotect,
 };
 
 // Called on a syscall trap. Checks that the syscall number (passed via eax)

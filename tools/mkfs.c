@@ -66,127 +66,132 @@ xint(uint x)
 
 int 
 mkfs(int nblocks, int ninodes, int size) {
-  
+
   int i;
   char buf[BLOCK_SIZE];
-  
+
   sb.size = xint(size);
   sb.nblocks = xint(nblocks); // so whole disk is size sectors
   sb.ninodes = xint(ninodes);
-  
+
   bitblocks = size/(512*8) + 1;
   usedblocks = ninodes / IPB + 3 + bitblocks;
   freeblock = usedblocks;
-  
+
   printf("used %d (bit %d ninode %zu) free %u total %d\n", usedblocks,
          bitblocks, ninodes/IPB + 1, freeblock, nblocks+usedblocks);
-  
+
   assert(nblocks + usedblocks == size);
-  
+
   for(i = 0; i < nblocks + usedblocks; i++)
     wsect(i, zeroes);
-  
+
   memset(buf, 0, sizeof(buf));
   memmove(buf, &sb, sizeof(sb));
   wsect(1, buf);
-  
-  
+
+
   return 0;
 }
 
 int
 add_dir(DIR *cur_dir, int cur_inode, int parent_inode) {
-  int r;
-  int child_inode;
-  int cur_fd, child_fd;
-  struct xv6_dirent de;
-  struct dinode din;
-  struct dirent *entry;
-  struct stat st;
-  int bytes_read;
-  char buf[BLOCK_SIZE];
-  int off;
-  
-  bzero(&de, sizeof(de));
-  de.inum = xshort(cur_inode);
-  strcpy(de.name, ".");
-  iappend(cur_inode, &de, sizeof(de));
-  
-  bzero(&de, sizeof(de));
-  de.inum = xshort(parent_inode);
-  strcpy(de.name, "..");
-  iappend(cur_inode, &de, sizeof(de));
-  
-  if (cur_dir == NULL) {
-    return 0;
-  }
-  
-  cur_fd = dirfd(cur_dir);
-  if (cur_fd == -1){
-    perror("add_dir");
-    exit(EXIT_FAILURE);
-  }
-  
-  if (fchdir(cur_fd) != 0){
-    perror("add_dir");
-    return -1;
-  }
-  
-  while (true) {
-    entry = readdir(cur_dir);
+	int r;
+	int child_inode;
+	int cur_fd, child_fd;
+	struct xv6_dirent de;
+	struct dinode din;
+	struct dirent dir_buf;
+	struct dirent *entry;
+	struct stat st;
+	int bytes_read;
+	char buf[BLOCK_SIZE];
+	int off;
 
-    // not quite proper error handling here, but oh well...
-    if (entry == NULL)
-      break;
-    
-    if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
-      continue;
-    
-    printf("%s\n", entry->d_name);
-    
-    child_fd = open(entry->d_name, O_RDONLY);
-    if (child_fd == -1) {
-      perror("open");
-      return -1;
-    }
-    
-    r = fstat(child_fd, &st);
-    if (r != 0) {
-      perror("stat");
-      return -1;
-    }
-    
-    if (S_ISDIR(st.st_mode)) {
+	bzero(&de, sizeof(de));
+	de.inum = xshort(cur_inode);
+	strcpy(de.name, ".");
+	iappend(cur_inode, &de, sizeof(de));
+
+	bzero(&de, sizeof(de));
+	de.inum = xshort(parent_inode);
+	strcpy(de.name, "..");
+	iappend(cur_inode, &de, sizeof(de));
+
+	if (cur_dir == NULL) {
+		return 0;
+	}
+
+	cur_fd = dirfd(cur_dir);
+	if (cur_fd == -1){
+		perror("add_dir");
+		exit(EXIT_FAILURE);
+	}
+
+	if (fchdir(cur_fd) != 0){
+		perror("add_dir");
+		return -1;
+	}
+
+	while (true) {
+		r = readdir_r(cur_dir, &dir_buf, &entry);
+
+		if (r != 0) {
+			perror("add_dir");
+			return -1;
+		}
+
+		if (entry == NULL)
+			break;
+
+		if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
+			continue;
+
+		printf("%s\n", entry->d_name);
+
+		child_fd = open(entry->d_name, O_RDONLY);
+		if (child_fd == -1) {
+			perror("open");
+			return -1;
+		}
+
+		r = fstat(child_fd, &st);
+		if (r != 0) {
+			perror("stat");
+			return -1;
+		}
+
+		if (S_ISDIR(st.st_mode)) {
       child_inode = ialloc(T_DIR);
-      r = add_dir(fdopendir(child_fd), child_inode, cur_inode);
-      if (r != 0) return r;
-      if (fchdir(cur_fd) != 0) {
-	perror("chdir");
-	return -1;
-      }
-    } else {
-      bytes_read = 0;
-      child_inode = ialloc(T_FILE);
-      bzero(&de, sizeof(de));
-      while((bytes_read = read(child_fd, buf, sizeof(buf))) > 0) {
-	iappend(child_inode, buf, bytes_read);
-      }
-    }
-    close(child_fd);
-    
-    de.inum = xshort(child_inode);
-    strncpy(de.name, entry->d_name, DIRSIZ);
-    iappend(cur_inode, &de, sizeof(de));
-    
-  }
-  
-  // fix size of inode cur_dir
-  rinode(cur_inode, &din);
-  off = xint(din.size);
-  off = ((off/BSIZE) + 1) * BSIZE;
-  din.size = xint(off);
-  winode(cur_inode, &din);
-  return 0;
+			r = add_dir(fdopendir(child_fd), child_inode, cur_inode);
+			if (r != 0) return r;
+			if (fchdir(cur_fd) != 0) {
+				perror("chdir");
+				return -1;
+			}
+		} else {
+			bytes_read = 0;
+	  		child_inode = ialloc(T_FILE);
+			bzero(&de, sizeof(de));
+			while((bytes_read = read(child_fd, buf, sizeof(buf))) > 0) {
+				iappend(child_inode, buf, bytes_read);
+			}
+		}
+		close(child_fd);
+
+		de.inum = xshort(child_inode);
+		strncpy(de.name, entry->d_name, DIRSIZ);
+		iappend(cur_inode, &de, sizeof(de));
+
+	}
+
+	// fix size of inode cur_dir
+	rinode(cur_inode, &din);
+	off = xint(din.size);
+	off = ((off/BSIZE) + 1) * BSIZE;
+	din.size = xint(off);
+	winode(cur_inode, &din);
+	return 0;
 }
 
 
@@ -197,35 +202,35 @@ main(int argc, char *argv[])
 {
   int r;
   DIR *root_dir;
-  
+
   if(argc < 2){
     fprintf(stderr, "Usage: mkfs fs.img files...\n");
     exit(1);
   }
-  
+
   assert((512 % sizeof(struct dinode)) == 0);
   assert((512 % sizeof(struct xv6_dirent)) == 0);
-  
+
   fsfd = open(argv[1], O_RDWR|O_CREAT|O_TRUNC, 0666);
   if(fsfd < 0){
     perror(argv[1]);
     exit(1);
   }
-  
+
   mkfs(995, 200, 1024);
-  
+
   root_dir = opendir(argv[2]);
-  
+
   root_inode = ialloc(T_DIR);
   assert(root_inode == ROOTINO);
-  
+
   r = add_dir(root_dir, root_inode, root_inode);
   if (r != 0) {
     exit(EXIT_FAILURE);
   }
-  
+
   balloc(usedblocks);
-  
+
   exit(0);
 }
 
@@ -254,7 +259,7 @@ winode(uint inum, struct dinode *ip)
   char buf[512];
   uint bn;
   struct dinode *dip;
-  
+
   bn = i2b(inum);
   rsect(bn, buf);
   dip = ((struct dinode*)buf) + (inum % IPB);
@@ -268,7 +273,7 @@ rinode(uint inum, struct dinode *ip)
   char buf[512];
   uint bn;
   struct dinode *dip;
-  
+
   bn = i2b(inum);
   rsect(bn, buf);
   dip = ((struct dinode*)buf) + (inum % IPB);
@@ -293,7 +298,7 @@ ialloc(ushort type)
 {
   uint inum = freeinode++;
   struct dinode din;
-  
+
   bzero(&din, sizeof(din));
   din.type = xshort(type);
   din.nlink = xshort(1);
@@ -307,7 +312,7 @@ balloc(int used)
 {
   uchar buf[512];
   int i;
-  
+
   printf("balloc: first %d blocks have been allocated\n", used);
   assert(used < 512*8);
   bzero(buf, 512);
@@ -329,31 +334,31 @@ iappend(uint inum, void *xp, int n)
   char buf[512];
   uint indirect[NINDIRECT];
   uint x;
-  
+
   rinode(inum, &din);
-  
+
   off = xint(din.size);
   while(n > 0){
     fbn = off / 512;
     assert(fbn < MAXFILE);
     if(fbn < NDIRECT){
       if(xint(din.addrs[fbn]) == 0){
-	din.addrs[fbn] = xint(freeblock++);
-	usedblocks++;
+        din.addrs[fbn] = xint(freeblock++);
+        usedblocks++;
       }
       x = xint(din.addrs[fbn]);
     } else {
       if(xint(din.addrs[NDIRECT]) == 0){
-	// printf("allocate indirect block\n");
-	din.addrs[NDIRECT] = xint(freeblock++);
-	usedblocks++;
+        // printf("allocate indirect block\n");
+        din.addrs[NDIRECT] = xint(freeblock++);
+        usedblocks++;
       }
       // printf("read indirect block\n");
       rsect(xint(din.addrs[NDIRECT]), (char*)indirect);
       if(indirect[fbn - NDIRECT] == 0){
-	indirect[fbn - NDIRECT] = xint(freeblock++);
-	usedblocks++;
-	wsect(xint(din.addrs[NDIRECT]), (char*)indirect);
+        indirect[fbn - NDIRECT] = xint(freeblock++);
+        usedblocks++;
+        wsect(xint(din.addrs[NDIRECT]), (char*)indirect);
       }
       x = xint(indirect[fbn-NDIRECT]);
     }
